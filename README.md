@@ -98,7 +98,9 @@ New-Item -ItemType SymbolicLink -Name "VibeLink" -Target "..\..\..\Engine\Unity"
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the contributing guidelines first.
+Contributions are welcome! Please read the [Contributing Guidelines](CONTRIBUTING.md) first.
+
+**For AI Agents**: See the [AI Agent Workflow](CONTRIBUTING.md#-for-ai-agents) section.
 
 ## 📄 License
 
