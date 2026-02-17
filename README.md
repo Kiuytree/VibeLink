@@ -34,6 +34,25 @@ VibeLink is a bidirectional communication system between Unity and Blender that 
 
 ## 🚀 Quick Start
 
+### Quick Install (Automated)
+
+**Windows (PowerShell as Admin):**
+```powershell
+git clone https://github.com/Kiuytree/VibeLink.git
+cd VibeLink
+.\install.ps1 -ProjectPath "C:\Path\To\YourUnityProject"
+```
+
+**Linux/Mac:**
+```bash
+git clone https://github.com/Kiuytree/VibeLink.git
+cd VibeLink
+chmod +x install.sh
+./install.sh /path/to/YourUnityProject
+```
+
+### Manual Install
+
 ### 1. Install in Unity
 ```bash
 cd YourUnityProject
