@@ -43,21 +43,49 @@ public class VibeAssetImporter : AssetPostprocessor
             foreach (Material mat in r.sharedMaterials)
             {
                 if (mat == null) continue;
-                
-                // Color Mágico basado en nombre
-                Color color = Color.white;
-                if (mat.name.Contains("Walls")) color = new Color(0.9f, 0.85f, 0.7f); // Beige
-                else if (mat.name.Contains("Roof")) color = new Color(0.6f, 0.2f, 0.1f);  // Rojo Teja
-                else if (mat.name.Contains("Wood")) color = new Color(0.4f, 0.25f, 0.1f); // Marrón Oscuro
-                else if (mat.name.Contains("Door")) color = new Color(0.25f, 0.15f, 0.1f); // Madera Puerta
-                else if (mat.name.Contains("Window")) color = new Color(0.4f, 0.7f, 0.9f, 0.5f); // Azul Cristal
-                else if (mat.name.Contains("Stone")) color = new Color(0.5f, 0.5f, 0.55f); // Gris Piedra
-                else if (mat.name.Contains("Grass") || mat.name.Contains("Leaves")) color = new Color(0.1f, 0.6f, 0.1f); // Verde Bosque
-                else if (mat.name.Contains("Skin"))  color = new Color(0.85f, 0.65f, 0.5f);  // Piel
-                else if (mat.name.Contains("Cloth")) color = new Color(0.3f,  0.45f, 0.6f);  // Tela Azul
-                
-                mat.color = color;
-                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+
+                // 1. Intentar extraer color HEX del nombre (formato: Mat_..._RRGGBB_...)
+                // Ej: Mat_F_Skin_EAC8A4_12345
+                var hexMatch = System.Text.RegularExpressions.Regex.Match(mat.name, @"_([0-9A-Fa-f]{6})_");
+                if (hexMatch.Success)
+                {
+                    if (ColorUtility.TryParseHtmlString("#" + hexMatch.Groups[1].Value, out Color extractedColor))
+                    {
+                        mat.color = extractedColor;
+                        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", extractedColor);
+                        // Asegurar que usa un shader que soporte color
+                        if (mat.shader.name == "Standard" || mat.shader.name == "Hidden/InternalErrorShader") 
+                        {
+                            // Intentar cambiar a URP Lit si es posible, o dejar Standard
+                             mat.shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                        }
+                        continue;
+                    }
+                }
+
+                // 2. Si tiene dígitos pero no HEX (legacy procedural), no tocar
+                bool isProcedural = System.Text.RegularExpressions.Regex.IsMatch(mat.name, @"\d");
+                if (isProcedural) continue;
+
+                // 3. Reglas por defecto para assets estáticos (Casas, etc)
+                Color? overrideColor = null;
+
+                if (mat.name.Contains("Walls"))      overrideColor = new Color(0.9f, 0.85f, 0.7f); // Beige
+                else if (mat.name.Contains("Roof"))  overrideColor = new Color(0.6f, 0.2f, 0.1f);  // Rojo Teja
+                else if (mat.name.Contains("Wood"))  overrideColor = new Color(0.4f, 0.25f, 0.1f); // Marrón Oscuro
+                else if (mat.name.Contains("Door"))  overrideColor = new Color(0.25f, 0.15f, 0.1f); // Madera Puerta
+                else if (mat.name.Contains("Window")) overrideColor = new Color(0.4f, 0.7f, 0.9f, 0.5f); // Azul Cristal
+                else if (mat.name.Contains("Stone")) overrideColor = new Color(0.5f, 0.5f, 0.55f); // Gris Piedra
+                else if (mat.name.Contains("Grass") || mat.name.Contains("Leaves")) overrideColor = new Color(0.1f, 0.6f, 0.1f); // Verde Bosque
+                else if (mat.name.Contains("Skin"))  overrideColor = new Color(0.85f, 0.65f, 0.5f);  // Piel base
+                else if (mat.name.Contains("Cloth")) overrideColor = new Color(0.3f,  0.45f, 0.6f);  // Tela Azul base
+
+                // Solo aplicar si hay una regla específica
+                if (overrideColor.HasValue)
+                {
+                    mat.color = overrideColor.Value;
+                    if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", overrideColor.Value);
+                }
             }
         }
     }

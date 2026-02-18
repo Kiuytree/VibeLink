@@ -157,15 +157,21 @@ def generate(params):
     sec_col   = palette[1]
     acc_col   = palette[2]
 
-    # ── Materiales (nombres únicos por seed para variedad) ────────
+    # Helper para hex
+    def to_hex(c):
+        return "".join([f"{int(x*255):02X}" for x in c])
+
+    # ── Materiales (nombre incluye HEX para que Unity lo lea) ─────
     uid = str(seed)
-    m_skin  = get_mat(f"Mat_F_Skin_{uid}",  skin_col)
-    m_hair  = get_mat(f"Mat_F_Hair_{uid}",  hair_col)
-    m_cloth = get_mat(f"Mat_F_Cloth_{uid}", cloth_col)
-    m_sec   = get_mat(f"Mat_F_Sec_{uid}",   sec_col)
-    m_acc   = get_mat(f"Mat_F_Acc_{uid}",   acc_col)
-    m_eye   = get_mat(f"Mat_F_Eye_{uid}",   (0.04, 0.04, 0.06))
-    m_white = get_mat(f"Mat_F_White_{uid}", (0.92, 0.92, 0.90))
+    
+    m_skin  = get_mat(f"Mat_F_Skin_{to_hex(skin_col)}_{uid}",  skin_col)
+    m_hair  = get_mat(f"Mat_F_Hair_{to_hex(hair_col)}_{uid}",  hair_col)
+    m_cloth = get_mat(f"Mat_F_Cloth_{to_hex(cloth_col)}_{uid}", cloth_col)
+    m_sec   = get_mat(f"Mat_F_Sec_{to_hex(sec_col)}_{uid}",   sec_col)
+    m_acc   = get_mat(f"Mat_F_Acc_{to_hex(acc_col)}_{uid}",   acc_col)
+    
+    m_eye   = get_mat(f"Mat_F_Eye_101015_{uid}",   (0.06, 0.06, 0.08))
+    m_white = get_mat(f"Mat_F_White_EBEBE5_{uid}", (0.92, 0.92, 0.90))
 
     parts = []
 
@@ -260,7 +266,7 @@ def generate(params):
     if rng.random() < 0.6:
         brow_z = eye_z + eye_h * 0.85
         brow_col = tuple(max(0, c - 0.15) for c in skin_col)
-        m_brow = get_mat(f"Mat_F_Brow_{uid}", brow_col)
+        m_brow = get_mat(f"Mat_F_Brow_{to_hex(brow_col)}_{uid}", brow_col)
         for sx in [-1, 1]:
             parts.append(box(f"Brow_{'L' if sx<0 else 'R'}",
                              sx * eye_x, eye_y, brow_z,
@@ -359,7 +365,7 @@ def generate(params):
         beard_h = head_h * rng.uniform(0.28, 0.45)
         beard_cz = head_cz - head_h * 0.30
         beard_col = tuple(max(0, c - 0.05) for c in hair_col)
-        m_beard = get_mat(f"Mat_F_Beard_{uid}", beard_col)
+        m_beard = get_mat(f"Mat_F_Beard_{to_hex(beard_col)}_{uid}", beard_col)
         parts.append(box("Beard", 0, head_d * 0.50, beard_cz,
                          head_w * 0.58, H * 0.018, beard_h, m_beard))
 
@@ -381,7 +387,7 @@ def generate(params):
     # Bufanda (20%)
     if rng.random() < 0.20:
         scarf_col = CLOTH_PALETTES[rng.randint(0, len(CLOTH_PALETTES)-1)][2]
-        m_scarf = get_mat(f"Mat_F_Scarf_{uid}", scarf_col)
+        m_scarf = get_mat(f"Mat_F_Scarf_{to_hex(scarf_col)}_{uid}", scarf_col)
         parts.append(box("Scarf", 0, 0, neck_bot_z + neck_h * 0.5,
                          neck_w * 1.6, neck_w * 1.5, neck_h * 0.6, m_scarf))
 
