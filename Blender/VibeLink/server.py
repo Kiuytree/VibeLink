@@ -148,6 +148,7 @@ def process_queue():
 
 from .generators import house_generator
 from .generators import nature_generator
+from .generators import humanoid_generator
 
 
 def export_to_unity(obj, params, prefix="Object"):
@@ -244,7 +245,25 @@ def handle_message(json_str):
             # Prefix: "Tree" or "Rock"
             type_name = params.get("type", "nature").capitalize()
             export_to_unity(nature_obj, params, prefix=type_name)
-            
+
+        elif cmd == "generate_humanoid":
+            log(f"Generating Humanoid: {data}")
+
+            # Limpiar escena
+            bpy.ops.object.select_all(action='SELECT')
+            bpy.ops.object.delete()
+
+            # Parsear parámetros
+            params = data.get("params", {})
+            if "seed"  in data: params["seed"]  = data["seed"]
+            if "style" in data: params["style"] = data["style"]
+            # style: "villager" | "guard" | "elder"
+
+            humanoid_obj = humanoid_generator.generate(params)
+
+            style_name = params.get("style", "villager").capitalize()
+            export_to_unity(humanoid_obj, params, prefix=f"Humanoid_{style_name}")
+
     except Exception as e:
         log(f"Error processing: {e}")
         import traceback

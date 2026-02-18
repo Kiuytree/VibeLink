@@ -97,6 +97,20 @@ public class VibeLinkEditor : EditorWindow
             Debug.Log("[VibeLink] Sent Nature Requests!");
         }
 
+        GUILayout.Space(5);
+        if (VibeLinkServer.Instance != null && GUILayout.Button("🧑 Generate Humanoid Set (V+G+E)", GUILayout.Height(30)))
+        {
+            string path = Application.dataPath.Replace("\\", "/");
+            string[] styles = { "villager", "guard", "elder" };
+            foreach (string style in styles)
+            {
+                int seed = Random.Range(0, 9999);
+                string json = $"{{\"cmd\": \"generate_humanoid\", \"params\": {{\"style\": \"{style}\", \"seed\": {seed}, \"export_path\": \"{path}\"}}}}";
+                VibeLinkServer.Instance.Broadcast(json);
+            }
+            Debug.Log("[VibeLink] Sent Humanoid Requests!");
+        }
+
     }
 
     void SetupScene()
