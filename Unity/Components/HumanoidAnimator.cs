@@ -1,34 +1,22 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Procedural animator for VibeLink-generated humanoid characters.
-/// Drives bone rotations via Mathf.Sin/Cos curves — no AnimationClip needed.
+/// Drives bone rotations via Mathf.Sin/Cos — no AnimationClip needed.
+/// 
+/// IMPORTANT: Rotations are applied as OFFSETS from the bone's rest pose,
+/// so they work correctly regardless of how Blender exported the rig.
 /// 
 /// States: Idle, Walk, Carry, Sleep, Sit
 /// </summary>
 public class HumanoidAnimator : MonoBehaviour
 {
-    // ─── State ───────────────────────────────────────────────────────────
     public enum AnimState { Idle, Walk, Carry, Sleep, Sit }
+
     [Header("Current State")]
     public AnimState state = AnimState.Idle;
 
-    // ─── Bone References (auto-found by name) ────────────────────────────
-    [Header("Bones (auto-assigned on Start)")]
-    public Transform boneHips;
-    public Transform boneSpine;
-    public Transform boneChest;
-    public Transform boneHead;
-    public Transform boneLeftUpperArm;
-    public Transform boneLeftLowerArm;
-    public Transform boneRightUpperArm;
-    public Transform boneRightLowerArm;
-    public Transform boneLeftUpperLeg;
-    public Transform boneLeftLowerLeg;
-    public Transform boneRightUpperLeg;
-    public Transform boneRightLowerLeg;
-
-    // ─── Tuning ──────────────────────────────────────────────────────────
     [Header("Walk")]
     public float walkSpeed     = 2.5f;
     public float legSwingAngle = 35f;
@@ -37,212 +25,221 @@ public class HumanoidAnimator : MonoBehaviour
     [Header("Idle")]
     public float idleBreathSpeed = 0.8f;
     public float idleBreathAngle = 2f;
-    public float idleHeadBobAngle = 1.5f;
 
     [Header("Carry")]
-    public float carryArmAngle = 70f;   // Arms raised forward
+    public float carryArmAngle = 65f;
 
     [Header("Transition")]
-    public float blendSpeed = 6f;
+    public float blendSpeed = 8f;
 
-    // ─── Internal ────────────────────────────────────────────────────────
-    private float _t;           // Animation time accumulator
-    private AnimState _prevState;
+    // ─── Bone References ─────────────────────────────────────────────────
+    Transform boneHips, boneSpine, boneChest, boneHead, boneNeck;
+    Transform boneLUA, boneLLA, boneLH;   // Left  Upper/Lower Arm, Hand
+    Transform boneRUA, boneRLA, boneRH;   // Right Upper/Lower Arm, Hand
+    Transform boneLUL, boneLLL, boneLF;   // Left  Upper/Lower Leg, Foot
+    Transform boneRUL, boneRLL, boneRF;   // Right Upper/Lower Leg, Foot
 
-    // Blended rotation targets
-    private Quaternion _qLeftUpperArm, _qRightUpperArm;
-    private Quaternion _qLeftUpperLeg, _qRightUpperLeg;
-    private Quaternion _qLeftLowerLeg, _qRightLowerLeg;
-    private Quaternion _qSpine, _qHead;
+    // ─── Rest Poses (captured at Start) ──────────────────────────────────
+    Dictionary<Transform, Quaternion> _restPose = new Dictionary<Transform, Quaternion>();
+
+    float _t;
 
     // ─────────────────────────────────────────────────────────────────────
     void Start()
     {
-        AutoFindBones();
-        _prevState = state;
+        FindBones();
+        CaptureRestPose();
     }
 
     void Update()
     {
         _t += Time.deltaTime;
-        UpdateAnimation();
+        switch (state)
+        {
+            case AnimState.Idle:  AnimIdle();  break;
+            case AnimState.Walk:  AnimWalk();  break;
+            case AnimState.Carry: AnimCarry(); break;
+            case AnimState.Sleep: AnimSleep(); break;
+            case AnimState.Sit:   AnimSit();   break;
+        }
     }
 
-    // ─── Bone Auto-Discovery ─────────────────────────────────────────────
-    void AutoFindBones()
+    // ─── Bone Discovery ──────────────────────────────────────────────────
+    void FindBones()
     {
-        boneHips          = FindBone("Hips");
-        boneSpine         = FindBone("Spine");
-        boneChest         = FindBone("Chest");
-        boneHead          = FindBone("Head");
-        boneLeftUpperArm  = FindBone("LeftUpperArm");
-        boneLeftLowerArm  = FindBone("LeftLowerArm");
-        boneRightUpperArm = FindBone("RightUpperArm");
-        boneRightLowerArm = FindBone("RightLowerArm");
-        boneLeftUpperLeg  = FindBone("LeftUpperLeg");
-        boneLeftLowerLeg  = FindBone("LeftLowerLeg");
-        boneRightUpperLeg = FindBone("RightUpperLeg");
-        boneRightLowerLeg = FindBone("RightLowerLeg");
+        boneHips  = Find("Hips");
+        boneSpine = Find("Spine");
+        boneChest = Find("Chest");
+        boneNeck  = Find("Neck");
+        boneHead  = Find("Head");
+
+        boneLUA = Find("LeftUpperArm");
+        boneLLA = Find("LeftLowerArm");
+        boneLH  = Find("LeftHand");
+        boneRUA = Find("RightUpperArm");
+        boneRLA = Find("RightLowerArm");
+        boneRH  = Find("RightHand");
+
+        boneLUL = Find("LeftUpperLeg");
+        boneLLL = Find("LeftLowerLeg");
+        boneLF  = Find("LeftFoot");
+        boneRUL = Find("RightUpperLeg");
+        boneRLL = Find("RightLowerLeg");
+        boneRF  = Find("RightFoot");
     }
 
-    Transform FindBone(string boneName)
+    Transform Find(string boneName)
     {
-        // Search all children recursively
         foreach (Transform t in GetComponentsInChildren<Transform>())
             if (t.name == boneName) return t;
         return null;
     }
 
-    // ─── Animation Dispatcher ────────────────────────────────────────────
-    void UpdateAnimation()
+    // ─── Rest Pose Capture ───────────────────────────────────────────────
+    void CaptureRestPose()
     {
-        switch (state)
-        {
-            case AnimState.Idle:   AnimateIdle();   break;
-            case AnimState.Walk:   AnimateWalk();   break;
-            case AnimState.Carry:  AnimateCarry();  break;
-            case AnimState.Sleep:  AnimateSleep();  break;
-            case AnimState.Sit:    AnimateSit();    break;
-        }
+        foreach (Transform t in GetComponentsInChildren<Transform>())
+            _restPose[t] = t.localRotation;
     }
 
-    // ─── IDLE ────────────────────────────────────────────────────────────
-    void AnimateIdle()
+    Quaternion Rest(Transform t)
     {
-        float breath = Mathf.Sin(_t * idleBreathSpeed) * idleBreathAngle;
-        float headBob = Mathf.Sin(_t * idleBreathSpeed * 0.7f) * idleHeadBobAngle;
-
-        // Subtle chest breathing
-        SetBoneRotation(boneSpine, breath, 0, 0);
-        SetBoneRotation(boneHead, headBob, 0, 0);
-
-        // Arms hang naturally with slight sway
-        float sway = Mathf.Sin(_t * 0.5f) * 3f;
-        SetBoneRotation(boneLeftUpperArm,  5f + sway, 0, -10f);
-        SetBoneRotation(boneRightUpperArm, 5f - sway, 0,  10f);
-
-        // Legs straight
-        SetBoneRotation(boneLeftUpperLeg,  0, 0, 0);
-        SetBoneRotation(boneRightUpperLeg, 0, 0, 0);
-        SetBoneRotation(boneLeftLowerLeg,  0, 0, 0);
-        SetBoneRotation(boneRightLowerLeg, 0, 0, 0);
+        if (t == null) return Quaternion.identity;
+        return _restPose.TryGetValue(t, out var r) ? r : t.localRotation;
     }
 
-    // ─── WALK ────────────────────────────────────────────────────────────
-    void AnimateWalk()
-    {
-        float cycle = _t * walkSpeed;
-        float legL  =  Mathf.Sin(cycle) * legSwingAngle;
-        float legR  = -Mathf.Sin(cycle) * legSwingAngle;
-        float armL  = -Mathf.Sin(cycle) * armSwingAngle;  // Opposite to legs
-        float armR  =  Mathf.Sin(cycle) * armSwingAngle;
-
-        // Knee bend: only bend when leg swings back
-        float kneeBendL = Mathf.Max(0, -Mathf.Sin(cycle)) * 30f;
-        float kneeBendR = Mathf.Max(0,  Mathf.Sin(cycle)) * 30f;
-
-        // Hip sway
-        float hipSway = Mathf.Sin(cycle * 2) * 4f;
-
-        SetBoneRotation(boneHips,         0, 0, hipSway);
-        SetBoneRotation(boneSpine,        Mathf.Sin(cycle * 2) * 3f, 0, 0);
-        SetBoneRotation(boneHead,         0, Mathf.Sin(cycle) * 5f, 0);
-
-        SetBoneRotation(boneLeftUpperLeg,  legL, 0, 0);
-        SetBoneRotation(boneRightUpperLeg, legR, 0, 0);
-        SetBoneRotation(boneLeftLowerLeg,  kneeBendL, 0, 0);
-        SetBoneRotation(boneRightLowerLeg, kneeBendR, 0, 0);
-
-        SetBoneRotation(boneLeftUpperArm,  armL, 0, -8f);
-        SetBoneRotation(boneRightUpperArm, armR, 0,  8f);
-        SetBoneRotation(boneLeftLowerArm,  Mathf.Max(0, armL) * 0.5f, 0, 0);
-        SetBoneRotation(boneRightLowerArm, Mathf.Max(0, armR) * 0.5f, 0, 0);
-    }
-
-    // ─── CARRY ───────────────────────────────────────────────────────────
-    void AnimateCarry()
-    {
-        float cycle = _t * walkSpeed;
-        float legL  =  Mathf.Sin(cycle) * legSwingAngle * 0.6f;
-        float legR  = -Mathf.Sin(cycle) * legSwingAngle * 0.6f;
-
-        // Arms raised forward holding something
-        float carryBob = Mathf.Sin(_t * 1.5f) * 3f;
-
-        SetBoneRotation(boneSpine,        10f, 0, 0);  // Lean forward slightly
-        SetBoneRotation(boneHead,         -5f, 0, 0);  // Look down at load
-
-        SetBoneRotation(boneLeftUpperArm,  -(carryArmAngle + carryBob), 0, -15f);
-        SetBoneRotation(boneRightUpperArm, -(carryArmAngle + carryBob), 0,  15f);
-        SetBoneRotation(boneLeftLowerArm,  -60f, 0, 0);  // Bent at elbow
-        SetBoneRotation(boneRightLowerArm, -60f, 0, 0);
-
-        SetBoneRotation(boneLeftUpperLeg,  legL, 0, 0);
-        SetBoneRotation(boneRightUpperLeg, legR, 0, 0);
-        SetBoneRotation(boneLeftLowerLeg,  Mathf.Max(0, -legL) * 0.5f, 0, 0);
-        SetBoneRotation(boneRightLowerLeg, Mathf.Max(0, -legR) * 0.5f, 0, 0);
-    }
-
-    // ─── SLEEP ───────────────────────────────────────────────────────────
-    void AnimateSleep()
-    {
-        float breath = Mathf.Sin(_t * 0.4f) * 3f;  // Slow breathing
-
-        // Lay flat: rotate entire character -90 on X (done via Hips)
-        SetBoneRotation(boneHips,  0, 0, 0);
-        SetBoneRotation(boneSpine, breath, 0, 0);
-        SetBoneRotation(boneHead,  -10f, 10f, 0);  // Head tilted to side
-
-        // Arms relaxed at sides
-        SetBoneRotation(boneLeftUpperArm,  20f, 0, -30f);
-        SetBoneRotation(boneRightUpperArm, 20f, 0,  30f);
-        SetBoneRotation(boneLeftLowerArm,  15f, 0, 0);
-        SetBoneRotation(boneRightLowerArm, 15f, 0, 0);
-
-        // Legs slightly bent
-        SetBoneRotation(boneLeftUpperLeg,  15f, 0, 5f);
-        SetBoneRotation(boneRightUpperLeg, 15f, 0, -5f);
-        SetBoneRotation(boneLeftLowerLeg,  20f, 0, 0);
-        SetBoneRotation(boneRightLowerLeg, 20f, 0, 0);
-    }
-
-    // ─── SIT ─────────────────────────────────────────────────────────────
-    void AnimateSit()
-    {
-        float breath = Mathf.Sin(_t * idleBreathSpeed) * idleBreathAngle;
-
-        SetBoneRotation(boneSpine, -5f + breath, 0, 0);
-        SetBoneRotation(boneHead,  5f, 0, 0);
-
-        // Thighs horizontal (90 degrees forward)
-        SetBoneRotation(boneLeftUpperLeg,  -85f, 0, 5f);
-        SetBoneRotation(boneRightUpperLeg, -85f, 0, -5f);
-
-        // Knees bent (lower legs hang down)
-        SetBoneRotation(boneLeftLowerLeg,  85f, 0, 0);
-        SetBoneRotation(boneRightLowerLeg, 85f, 0, 0);
-
-        // Arms resting on knees
-        SetBoneRotation(boneLeftUpperArm,  -60f, 0, -20f);
-        SetBoneRotation(boneRightUpperArm, -60f, 0,  20f);
-        SetBoneRotation(boneLeftLowerArm,  -30f, 0, 0);
-        SetBoneRotation(boneRightLowerArm, -30f, 0, 0);
-    }
-
-    // ─── Utility ─────────────────────────────────────────────────────────
-    void SetBoneRotation(Transform bone, float x, float y, float z)
+    // ─── Core: Apply offset FROM rest pose ───────────────────────────────
+    /// <summary>
+    /// Rotates a bone by 'offset' degrees relative to its rest pose.
+    /// This is axis-agnostic — works regardless of Blender export orientation.
+    /// </summary>
+    void Rotate(Transform bone, float x, float y, float z)
     {
         if (bone == null) return;
-        Quaternion target = Quaternion.Euler(x, y, z);
-        bone.localRotation = Quaternion.Slerp(bone.localRotation, target,
-                                               Time.deltaTime * blendSpeed);
+        Quaternion target = Rest(bone) * Quaternion.Euler(x, y, z);
+        bone.localRotation = Quaternion.Slerp(bone.localRotation, target, Time.deltaTime * blendSpeed);
     }
 
-    // ─── Public API ──────────────────────────────────────────────────────
-    public void SetState(AnimState newState)
+    void ResetBone(Transform bone)
     {
-        state = newState;
+        if (bone == null) return;
+        bone.localRotation = Quaternion.Slerp(bone.localRotation, Rest(bone), Time.deltaTime * blendSpeed);
     }
+
+    // ─── IDLE ─────────────────────────────────────────────────────────────
+    void AnimIdle()
+    {
+        float breath = Mathf.Sin(_t * idleBreathSpeed) * idleBreathAngle;
+        float sway   = Mathf.Sin(_t * 0.4f) * 2f;
+
+        Rotate(boneSpine, breath, 0, 0);
+        Rotate(boneHead,  Mathf.Sin(_t * 0.6f) * 1.5f, sway, 0);
+
+        // Arms hang with gentle sway
+        Rotate(boneLUA, 5f + sway, 0, -8f);
+        Rotate(boneRUA, 5f - sway, 0,  8f);
+        ResetBone(boneLLA); ResetBone(boneRLA);
+
+        // Legs straight
+        ResetBone(boneLUL); ResetBone(boneRUL);
+        ResetBone(boneLLL); ResetBone(boneRLL);
+    }
+
+    // ─── WALK ─────────────────────────────────────────────────────────────
+    void AnimWalk()
+    {
+        float c     = _t * walkSpeed;
+        float legL  =  Mathf.Sin(c) * legSwingAngle;
+        float legR  = -Mathf.Sin(c) * legSwingAngle;
+        float armL  = -Mathf.Sin(c) * armSwingAngle;
+        float armR  =  Mathf.Sin(c) * armSwingAngle;
+        float kneeL =  Mathf.Max(0, -Mathf.Sin(c)) * 28f;
+        float kneeR =  Mathf.Max(0,  Mathf.Sin(c)) * 28f;
+        float hipSw =  Mathf.Sin(c * 2) * 3f;
+
+        Rotate(boneHips,  0, 0, hipSw);
+        Rotate(boneSpine, Mathf.Sin(c * 2) * 2f, 0, 0);
+        Rotate(boneHead,  0, Mathf.Sin(c) * 4f, 0);
+
+        Rotate(boneLUL, legL, 0, 0);
+        Rotate(boneRUL, legR, 0, 0);
+        Rotate(boneLLL, kneeL, 0, 0);
+        Rotate(boneRLL, kneeR, 0, 0);
+        ResetBone(boneLF); ResetBone(boneRF);
+
+        Rotate(boneLUA, armL, 0, -6f);
+        Rotate(boneRUA, armR, 0,  6f);
+        Rotate(boneLLA, Mathf.Max(0, armL) * 0.4f, 0, 0);
+        Rotate(boneRLA, Mathf.Max(0, armR) * 0.4f, 0, 0);
+    }
+
+    // ─── CARRY ────────────────────────────────────────────────────────────
+    void AnimCarry()
+    {
+        float c   = _t * walkSpeed * 0.8f;
+        float bob = Mathf.Sin(_t * 1.5f) * 2f;
+        float legL =  Mathf.Sin(c) * legSwingAngle * 0.5f;
+        float legR = -Mathf.Sin(c) * legSwingAngle * 0.5f;
+
+        Rotate(boneSpine, 8f, 0, 0);
+        Rotate(boneHead, -4f, 0, 0);
+
+        // Arms raised forward holding load
+        Rotate(boneLUA, -(carryArmAngle + bob), 0, -12f);
+        Rotate(boneRUA, -(carryArmAngle + bob), 0,  12f);
+        Rotate(boneLLA, -55f, 0, 0);
+        Rotate(boneRLA, -55f, 0, 0);
+
+        Rotate(boneLUL, legL, 0, 0);
+        Rotate(boneRUL, legR, 0, 0);
+        Rotate(boneLLL, Mathf.Max(0, -legL) * 0.4f, 0, 0);
+        Rotate(boneRLL, Mathf.Max(0, -legR) * 0.4f, 0, 0);
+    }
+
+    // ─── SLEEP ────────────────────────────────────────────────────────────
+    void AnimSleep()
+    {
+        float breath = Mathf.Sin(_t * 0.35f) * 2.5f;
+
+        Rotate(boneSpine, breath, 0, 0);
+        Rotate(boneHead, -8f, 12f, 0);
+
+        Rotate(boneLUA, 15f, 0, -25f);
+        Rotate(boneRUA, 15f, 0,  25f);
+        Rotate(boneLLA, 12f, 0, 0);
+        Rotate(boneRLA, 12f, 0, 0);
+
+        Rotate(boneLUL, 12f, 0,  4f);
+        Rotate(boneRUL, 12f, 0, -4f);
+        Rotate(boneLLL, 18f, 0, 0);
+        Rotate(boneRLL, 18f, 0, 0);
+    }
+
+    // ─── SIT ──────────────────────────────────────────────────────────────
+    void AnimSit()
+    {
+        float breath = Mathf.Sin(_t * idleBreathSpeed) * idleBreathAngle;
+
+        Rotate(boneSpine, -4f + breath, 0, 0);
+        Rotate(boneHead,   4f, 0, 0);
+
+        // Thighs ~horizontal
+        Rotate(boneLUL, -82f, 0,  4f);
+        Rotate(boneRUL, -82f, 0, -4f);
+        // Lower legs hang down
+        Rotate(boneLLL, 82f, 0, 0);
+        Rotate(boneRLL, 82f, 0, 0);
+        ResetBone(boneLF); ResetBone(boneRF);
+
+        // Arms resting on knees
+        Rotate(boneLUA, -55f, 0, -18f);
+        Rotate(boneRUA, -55f, 0,  18f);
+        Rotate(boneLLA, -28f, 0, 0);
+        Rotate(boneRLA, -28f, 0, 0);
+    }
+
+    // ─── Public API ───────────────────────────────────────────────────────
+    public void SetState(AnimState newState) => state = newState;
 
     public void SetState(string stateName)
     {

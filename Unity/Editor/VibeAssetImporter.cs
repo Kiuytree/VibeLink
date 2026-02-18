@@ -10,14 +10,22 @@ public class VibeAssetImporter : AssetPostprocessor
             ModelImporter modelImporter = assetImporter as ModelImporter;
             if (modelImporter != null)
             {
-                // === FIX ESCALA & ROTACIÓN ===
                 modelImporter.globalScale = 1.0f;
-                modelImporter.useFileScale = true; 
-                modelImporter.bakeAxisConversion = true;
-                
-                modelImporter.addCollider = true;
+                modelImporter.useFileScale = true;
+                modelImporter.addCollider = false; // Humanoids need no collider on import
                 modelImporter.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
                 modelImporter.materialLocation = ModelImporterMaterialLocation.InPrefab;
+
+                // Humanoid: use Generic rig so our bones are accessible by name
+                if (assetPath.Contains("Humanoid"))
+                {
+                    modelImporter.animationType = ModelImporterAnimationType.Generic;
+                    modelImporter.bakeAxisConversion = true; // Let Unity handle Blender Z-up → Y-up
+                }
+                else
+                {
+                    modelImporter.bakeAxisConversion = true;
+                }
             }
         }
     }
@@ -88,8 +96,14 @@ public class VibeAssetImporter : AssetPostprocessor
                     // Auto-attach HumanoidAnimator si es un humanoide
                     if (prefab.name.Contains("Humanoid"))
                     {
+                        // Ensure upright orientation (Blender Z-up baked, but double-check)
+                        instance.transform.rotation = Quaternion.identity;
+
                         if (instance.GetComponent<HumanoidAnimator>() == null)
-                            instance.AddComponent<HumanoidAnimator>();
+                        {
+                            var anim = instance.AddComponent<HumanoidAnimator>();
+                            anim.state = HumanoidAnimator.AnimState.Idle;
+                        }
                     }
 
                     Selection.activeGameObject = instance;
