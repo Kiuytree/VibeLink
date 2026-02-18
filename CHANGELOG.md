@@ -5,6 +5,18 @@ All notable changes to VibeLink Engine will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-18
+
+### Added
+- **Humanoid Generator v1.0**: Procedural character creation
+  - **Styles**: Villager (Standard), Guard (Tall/Bulky), Elder (Short/Bearded)
+  - **Gender**: Male/Female variations with distinct proportions
+  - **Accessories**: Hats, Hoods, Bags, Scarves, Beards (randomized)
+  - **Color System**: HEX color encoded in material name (`Mat_..._RRGGBB_`) for perfect Unity import
+- **Unity Editor Upgrades**:
+  - New button: "🧑 Generate Villager Set" (Creates 6 variants at once)
+  - **VibeAssetImporter v1.2**: Added HEX color parsing from material names
+
 ## [1.0.0] - 2026-02-17
 
 ### Added
@@ -55,7 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- Character generator (modular humanoids)
 - Props generator (furniture, tools, decorations)
 - Batch generation commands
 - Unity Package Manager support
