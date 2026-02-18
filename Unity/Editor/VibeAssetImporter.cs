@@ -3,6 +3,8 @@ using UnityEditor;
 
 public class VibeAssetImporter : AssetPostprocessor
 {
+    static int _villagerCount = 0;
+
     void OnPreprocessModel()
     {
         if (assetPath.Contains("Generated/Models"))
@@ -93,17 +95,12 @@ public class VibeAssetImporter : AssetPostprocessor
 
                     instance.transform.position = spawnPos;
 
-                    // Auto-attach HumanoidAnimator si es un humanoide
-                    if (prefab.name.Contains("Humanoid"))
+                    // Villagers: posición automática en fila
+                    if (prefab.name.StartsWith("Villager"))
                     {
-                        // Ensure upright orientation (Blender Z-up baked, but double-check)
                         instance.transform.rotation = Quaternion.identity;
-
-                        if (instance.GetComponent<HumanoidAnimator>() == null)
-                        {
-                            var anim = instance.AddComponent<HumanoidAnimator>();
-                            anim.state = HumanoidAnimator.AnimState.Idle;
-                        }
+                        instance.transform.position = new Vector3(_villagerCount * 3f, 0, 15f);
+                        _villagerCount++;
                     }
 
                     Selection.activeGameObject = instance;

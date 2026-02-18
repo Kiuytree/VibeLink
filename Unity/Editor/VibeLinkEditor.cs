@@ -98,18 +98,27 @@ public class VibeLinkEditor : EditorWindow
         }
 
         GUILayout.Space(5);
-        if (VibeLinkServer.Instance != null && GUILayout.Button("🧑 Generate Humanoid Set (V+G+E)", GUILayout.Height(30)))
+        if (VibeLinkServer.Instance != null && GUILayout.Button("🧑 Generate Villager Set (6 variants)", GUILayout.Height(30)))
         {
             string path = Application.dataPath.Replace("\\", "/");
-            string[] styles = { "villager", "guard", "elder" };
-            foreach (string style in styles)
+            // 3 masculinos + 3 femeninos con seeds distintas
+            string[] styles = {
+                "villager",        // Aldeano M
+                "guard",           // Guardia M
+                "elder",           // Anciano M
+                "female_villager", // Aldeana F
+                "female_villager", // Aldeana F (seed distinta)
+                "female_elder",    // Anciana F
+            };
+            for (int i = 0; i < styles.Length; i++)
             {
-                int seed = Random.Range(0, 9999);
-                string json = $"{{\"cmd\": \"generate_humanoid\", \"params\": {{\"style\": \"{style}\", \"seed\": {seed}, \"export_path\": \"{path}\"}}}}";
+                int seed = Random.Range(0, 99999);
+                string json = $"{{\"cmd\": \"generate_humanoid\", \"params\": {{\"style\": \"{styles[i]}\", \"seed\": {seed}, \"export_path\": \"{path}\"}}}}";
                 VibeLinkServer.Instance.Broadcast(json);
             }
-            Debug.Log("[VibeLink] Sent Humanoid Requests!");
+            Debug.Log("[VibeLink] Sent 6 Villager Requests!");
         }
+
 
     }
 
