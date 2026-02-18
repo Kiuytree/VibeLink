@@ -188,10 +188,15 @@ def export_to_unity(obj, params, prefix="Object"):
     filename = f"{prefix}_{style}_L{lvl}_{seed}.fbx"
     filepath = os.path.join(export_dir, filename)
     
-    # Seleccionar solo el objeto a exportar
+    # Seleccionar el objeto raíz Y todos sus hijos (ej: armature + mesh)
     bpy.ops.object.select_all(action='DESELECT')
-    obj.select_set(True)
-    
+    def select_recursive(o):
+        o.select_set(True)
+        for child in o.children:
+            select_recursive(child)
+    select_recursive(obj)
+    bpy.context.view_layer.objects.active = obj
+
     log(f"Exporting to: {filepath}")
     
     # Exportar con configuración optimizada
